@@ -1,159 +1,95 @@
-import csv
-import re
+import os
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional
+from typing import Iterable, Optional
 
 import pandas as pd
+import pymysql
+from dotenv import load_dotenv
 
-SQL_PATH = Path(__file__).resolve().parents[1] / "data" / "splixdata20250410.sql"
-
-
-def read_table_columns(sql_path: Path, table_name: str) -> list[str]:
-    """Return ordered column names for a table from a SQL dump."""
-    columns: list[str] = []
-    in_table = False
-    with sql_path.open("r", encoding="utf-8", errors="replace") as file:
-        for line in file:
-            if not in_table:
-                if line.startswith(f"CREATE TABLE `{table_name}`"):
-                    in_table = True
-                continue
-
-            stripped = line.strip()
-            if stripped.startswith("`"):
-                match = re.match(r"`([^`]+)`", stripped)
-                if match:
-                    columns.append(match.group(1))
-            elif stripped.startswith(") ENGINE="):
-                break
-
-    if not columns:
-        raise ValueError(f"Columns not found for table: {table_name}")
-
-    return columns
+ENV_PATH = Path(__file__).resolve().parents[1] / ".env"
 
 
-def read_insert_values_sql(sql_path: Path, table_name: str) -> str:
-    """Return the raw VALUES portion for a table INSERT statement."""
-    insert_prefix = f"INSERT INTO `{table_name}` VALUES "
-    collecting = False
-    parts: list[str] = []
+@dataclass
+class DatabaseConfig:
+    """DB 接続情報。
 
-    with sql_path.open("r", encoding="utf-8", errors="replace") as file:
-        for line in file:
-            if not collecting:
-                if line.startswith(insert_prefix):
-                    collecting = True
-                    parts.append(line[len(insert_prefix) :])
-                    if line.rstrip().endswith(";"):
-                        break
-                continue
+    Args:
+        host: DB ホスト名。
+        port: DB ポート番号。
+        user: ユーザー名。
+        password: パスワード。
+        database: DB 名。
+        charset: 文字コード。
+    """
 
-            parts.append(line)
-            if line.rstrip().endswith(";"):
-                break
-
-    if not parts:
-        raise ValueError(f"INSERT VALUES not found for table: {table_name}")
-
-    values_sql = "".join(parts).rstrip()
-    if values_sql.endswith(";"):
-        values_sql = values_sql[:-1]
-
-    return values_sql
+    host: str
+    port: int
+    user: str
+    password: str
+    database: str
+    charset: str = "utf8mb4"
 
 
-def split_rows(values_sql: str) -> list[str]:
-    """Split a VALUES string into per-row value strings."""
-    rows: list[str] = []
-    in_string = False
-    escape = False
-    depth = 0
-    row_start: Optional[int] = None
-
-    for index, char in enumerate(values_sql):
-        if in_string:
-            if escape:
-                escape = False
-            elif char == "\\":
-                escape = True
-            elif char == "'":
-                in_string = False
-            continue
-
-        if char == "'":
-            in_string = True
-            continue
-
-        if char == "(":
-            if depth == 0:
-                row_start = index + 1
-            depth += 1
-            continue
-
-        if char == ")":
-            depth -= 1
-            if depth == 0 and row_start is not None:
-                rows.append(values_sql[row_start:index])
-                row_start = None
-            continue
-
-    return rows
+def load_env_file(env_path: Path = ENV_PATH) -> None:
+    """dotenv を使って .env を読み込む。"""
+    load_dotenv(env_path, override=False)
 
 
-def parse_value(raw_value: str):
-    """Convert raw SQL values into Python values."""
-    if raw_value.upper() == "NULL":
-        return None
-
-    if re.fullmatch(r"-?\d+", raw_value):
-        return int(raw_value)
-
-    return raw_value
-
-
-def parse_rows(values_sql: str) -> list[list[object]]:
-    """Parse a VALUES string into rows of Python values."""
-    rows: list[list[object]] = []
-    for row in split_rows(values_sql):
-        reader = csv.reader(
-            [row],
-            delimiter=",",
-            quotechar="'",
-            escapechar="\\",
-            doublequote=True,
-            strict=True,
-        )
-        values = next(reader)
-        rows.append([parse_value(value) for value in values])
-
-    return rows
+def build_db_config() -> DatabaseConfig:
+    """環境変数から DB 設定を作る。"""
+    load_env_file()
+    return DatabaseConfig(
+        host=os.getenv("DB_HOST", "localhost"),
+        port=int(os.getenv("DB_PORT", "3306")),
+        user=os.getenv("DB_USER", ""),
+        password=os.getenv("DB_PASSWORD", ""),
+        database=os.getenv("DB_NAME", ""),
+    )
 
 
-def load_dtb_essence_df(sql_path: Path = SQL_PATH) -> pd.DataFrame:
-    """Load dtb_essence from a SQL dump into a DataFrame."""
-    columns = read_table_columns(sql_path, "dtb_essence")
-    values_sql = read_insert_values_sql(sql_path, "dtb_essence")
-    rows = parse_rows(values_sql)
+def fetch_table_df(
+    table_name: str,
+    columns: Optional[Iterable[str]] = None,
+    limit: Optional[int] = None,
+    config: Optional[DatabaseConfig] = None,
+) -> pd.DataFrame:
+    """テーブルを DataFrame で取得する汎用関数。"""
+    config = config or build_db_config()
+    if not config.user or not config.database:
+        raise ValueError("DB_USER と DB_NAME を環境変数で設定してください。")
 
-    if not rows:
-        raise ValueError("No rows parsed for dtb_essence")
+    selected_columns = ", ".join(columns) if columns else "*"
+    sql = f"SELECT {selected_columns} FROM {table_name}"
+    if limit is not None:
+        sql += " LIMIT %s"
 
-    if any(len(row) != len(columns) for row in rows):
-        raise ValueError("Row length does not match column count")
+    with pymysql.connect(
+        host=config.host,
+        port=config.port,
+        user=config.user,
+        password=config.password,
+        database=config.database,
+        charset=config.charset,
+        cursorclass=pymysql.cursors.DictCursor,
+    ) as connection:
+        with connection.cursor() as cursor:
+            # 読み取り用途なので fetch するだけに留める。
+            cursor.execute(sql, (limit,) if limit is not None else None)
+            rows = cursor.fetchall()
 
-    return pd.DataFrame(rows, columns=columns)
+    return pd.DataFrame(rows)
 
 
 def test_dtb_essence_df_loads() -> None:
-    """Ensure dtb_essence loads into a DataFrame from the SQL dump."""
-    df = load_dtb_essence_df()
+    """dtb_essence が取得できることだけを軽く確認する。"""
+    df = fetch_table_df("dtb_essence", limit=5)
     assert not df.empty
     assert "id" in df.columns
 
 
 if __name__ == "__main__":
-    dtb_essence_df = load_dtb_essence_df()
-    print(dtb_essence_df.head(10))
+    dtb_essence_df = fetch_table_df("dtb_essence", limit=10)
+    print(dtb_essence_df)
     print("--" * 10)
     print(f"rows={len(dtb_essence_df)} cols={len(dtb_essence_df.columns)}")
