@@ -1,1 +1,4 @@
 ollama
+pandas
+PySQL
+python-dotenv
