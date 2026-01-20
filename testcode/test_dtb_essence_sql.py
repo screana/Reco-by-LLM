@@ -48,6 +48,15 @@ def build_db_config() -> DatabaseConfig:
     )
 
 
+def build_sql_path() -> Path:
+    """SQLダンプのパスを .env から取得する。"""
+    load_env_file()
+    env_path = os.getenv("SQL_DUMP_PATH")
+    if not env_path:
+        raise ValueError("SQL_DUMP_PATH を .env に設定してください。")
+    return Path(env_path)
+
+
 def fetch_table_df(
     table_name: str,
     columns: Optional[Iterable[str]] = None,
@@ -89,6 +98,8 @@ def test_dtb_essence_df_loads() -> None:
 
 
 if __name__ == "__main__":
+    sql_path = build_sql_path()
+    print(f"sql_dump_path={sql_path}")
     dtb_essence_df = fetch_table_df("dtb_essence", limit=10)
     print(dtb_essence_df)
     print("--" * 10)
