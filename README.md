@@ -13,6 +13,10 @@
 
 ## 1. LLMをとりあえず動かせるようにする。
 
+`requirement.txt`を`pip install`
+もし足りないパッケージあったらごめん
+
+
 とりあえずministral-3:8bでやろうかな。
 ```
 ollama list
@@ -38,8 +42,7 @@ ministral-3:latest    1922accd5827    6.0 GB    2 minutes ago
 
 これで動いたらOK
 
-### `requirement.txt`を`pip install`
-もし足りないパッケージあったらごめん
+
 
 
 ## 2. SQL接続（`.env`）
@@ -50,6 +53,7 @@ DB_PORT=3306
 DB_USER=your_user
 DB_PASSWORD=your_password
 DB_NAME=am_bi_lstm
+SQL_DUMP_PATH=/path/to/your.sql
 ```
 
 ### テスト
