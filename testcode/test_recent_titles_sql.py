@@ -6,6 +6,7 @@ sys.path.append(str(Path(__file__).resolve().parents[1]))
 
 from apps.reco.db_access import (
     fetch_active_users,
+    fetch_candidate_titles_popular,
     fetch_recent_subjects,
     fetch_recent_titles,
     fetch_teacher_metadata,
@@ -36,6 +37,10 @@ def main() -> None:
     recent_titles = fetch_recent_titles(target_user_id)
     for row in recent_titles:
         print(row)
+
+    print("--" * 10)
+    candidate_titles = fetch_candidate_titles_popular()
+    print(f"candidate_titles={len(candidate_titles)}")
 
 
 if __name__ == "__main__":

@@ -47,4 +47,10 @@ class RecommendationPipeline:
         query = self._llm.generate_query(payload.metadata, trimmed_history)
         self._search.fit(payload.candidate_titles)
         results = self._search.search(query, top_k=top_k)
+        if not results:
+            # 類似度がゼロの場合は人気順の候補をフォールバックする。
+            fallback_titles = payload.candidate_titles[:top_k]
+            results = [
+                SearchResult(title=title, score=0.0) for title in fallback_titles
+            ]
         return RecommendationOutput(query=query, results=results)
