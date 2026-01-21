@@ -1,6 +1,7 @@
 from dataclasses import dataclass
 from typing import Dict, List
 
+from .embedding_search import EmbeddingSearchConfig, FaissVectorSearch
 from .llm_client import LlmClient
 from .vector_search import SearchResult, TfIdfVectorSearch
 
@@ -49,6 +50,34 @@ class RecommendationPipeline:
         results = self._search.search(query, top_k=top_k)
         if not results:
             # 類似度がゼロの場合は人気順の候補をフォールバックする。
+            fallback_titles = payload.candidate_titles[:top_k]
+            results = [
+                SearchResult(title=title, score=0.0) for title in fallback_titles
+            ]
+        return RecommendationOutput(query=query, results=results)
+
+
+class EmbeddingRecommendationPipeline:
+    """埋め込み + FAISS を使ったパイプライン。"""
+
+    def __init__(
+        self,
+        model: str,
+        embedding_model: str = "BAAI/bge-m3",
+        cache_dir: str | None = None,
+    ) -> None:
+        self._llm = LlmClient(model=model)
+        self._search = FaissVectorSearch(
+            EmbeddingSearchConfig(model_name=embedding_model, cache_dir=cache_dir)
+        )
+
+    def recommend(self, payload: RecommendationInput, top_k: int = 5) -> RecommendationOutput:
+        """生成クエリに基づき候補タイトルを上位順に返す。"""
+        trimmed_history = payload.history_titles[-9:]
+        query = self._llm.generate_query(payload.metadata, trimmed_history)
+        self._search.fit(payload.candidate_titles)
+        results = self._search.search(query, top_k=top_k)
+        if not results:
             fallback_titles = payload.candidate_titles[:top_k]
             results = [
                 SearchResult(title=title, score=0.0) for title in fallback_titles

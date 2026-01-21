@@ -56,6 +56,8 @@ DB_USER=your_user
 DB_PASSWORD=your_password
 DB_NAME=am_bi_lstm
 SQL_DUMP_PATH=/path/to/your.sql
+EMBEDDING_CACHE_DIR=/path/to/cache
+EMBEDDING_MODEL=bge-m3
 ```
 
 ### テスト
@@ -63,6 +65,10 @@ SQL_DUMP_PATH=/path/to/your.sql
 ```
 python3 testcode/test_recent_titles_sql.py
 ```
+
+### 埋め込み検索（FAISS）
+`testcode/run_reco_pipeline.py` は Ollama の埋め込みモデルを使うので、
+`faiss-cpu` が必要。
 
 ## 3. appsの構成（ざっくり）
 - `apps/reco/db_access.py`  

@@ -1,4 +1,8 @@
 ollama
+pymysql
+python-dotenv
+faiss-cpu
+numpy
 pandas
 PySQL
 python-dotenv
