@@ -4,5 +4,7 @@ python-dotenv
 faiss-cpu
 numpy
 pandas
+openpyxl
+pandas
 PySQL
 python-dotenv
