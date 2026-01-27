@@ -6,6 +6,7 @@ import time
 # 実行場所に依存せず apps パッケージを解決できるようにする。
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
+from dotenv import load_dotenv
 from apps.reco.db_access import (
     fetch_active_users,
     fetch_candidate_titles_popular,
@@ -14,7 +15,7 @@ from apps.reco.db_access import (
     fetch_teacher_metadata,
 )
 from apps.reco.recommender import (
-    EmbeddingRecommendationPipeline,
+    QueryFusionRecommendationPipeline,
     RecommendationInput,
 )
 
@@ -37,6 +38,7 @@ def build_metadata(user_id: int) -> dict[str, str]:
 
 def main() -> None:
     """DB → LLM → ベクトル検索の一連を実行する。"""
+    load_dotenv()
     start_all = time.perf_counter()
     print("[step] fetch active users")
     active_users = fetch_active_users(exclude_user_ids=[14567])
@@ -53,6 +55,8 @@ def main() -> None:
     candidate_rows = fetch_candidate_titles_popular()
 
     history_titles = [row["title"] for row in recent_titles if row.get("title")]
+    masked_title = history_titles[0] if history_titles else ""
+    history_titles = history_titles[1:]
     candidate_titles = [row["title"] for row in candidate_rows if row.get("title")]
 
     print(f"history_titles={len(history_titles)} candidate_titles={len(candidate_titles)}")
@@ -62,7 +66,7 @@ def main() -> None:
 
     print("[step] run recommendation pipeline")
     embedding_model = os.getenv("EMBEDDING_MODEL", "bge-m3")
-    pipeline = EmbeddingRecommendationPipeline(
+    pipeline = QueryFusionRecommendationPipeline(
         model="ministral-3",
         embedding_model=embedding_model,
         cache_dir=os.getenv("EMBEDDING_CACHE_DIR"),
@@ -73,17 +77,34 @@ def main() -> None:
         candidate_titles=candidate_titles,
     )
 
-    output = pipeline.recommend(payload, top_k=10)
+    queries, ranked = pipeline.recommend(
+        payload,
+        query_count=3,
+        per_query_top_k=3,
+    )
 
     print(f"user_id={user_id}")
     print("metadata:", metadata)
     print("--" * 10)
     print("Generated query:")
-    print(output.query)
+    for idx, item in enumerate(queries, start=1):
+        print(f"{idx}. {item.query} - {item.reason}")
+    print("--" * 10)
+    print("Masked latest title:")
+    print(masked_title)
     print("--" * 10)
     print("Top recommendations:")
-    for result in output.results:
-        print(f"- {result.title} ({result.score:.3f})")
+    for idx, result in enumerate(ranked, start=1):
+        print(f"{idx}. {result.title} (similarity={result.score:.3f})")
+    print("--" * 10)
+    print("reasons")
+    for idx, result in enumerate(ranked, start=1):
+        print(f"{idx}. {result.reason}")
+    if masked_title:
+        matched_titles = [item.title for item in ranked if item.title == masked_title]
+        if matched_titles:
+            print("--" * 10)
+            print("Matched masked title in recommendations.")
     total_elapsed = time.perf_counter() - start_all
     print("--" * 10)
     print(f"total_time={total_elapsed:.2f}s")
