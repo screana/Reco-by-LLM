@@ -132,12 +132,23 @@ class QueryFusionRecommendationPipeline:
         payload: RecommendationInput,
         query_count: int = 3,
         per_query_top_k: int = 3,
-    ) -> tuple[List[QueryCandidate], List[RankedRecommendation]]:
+    ) -> tuple[
+        List[QueryCandidate],
+        List[RankedRecommendation],
+        List[Dict[str, str]],
+    ]:
         """複数クエリ検索→再ランキングで推薦を返す。"""
         trimmed_history = payload.history_titles[-9:]
         query_items = self._llm.generate_queries_with_reasons(
             payload.metadata, trimmed_history, count=query_count
         )
+        if not query_items and trimmed_history:
+            query_items = [
+                {
+                    "query": trimmed_history[0],
+                    "reason": "フォールバック: 直近閲覧タイトルをクエリに使用",
+                }
+            ]
         queries = [
             QueryCandidate(query=item["query"], reason=item.get("reason", ""))
             for item in query_items
@@ -172,6 +183,7 @@ class QueryFusionRecommendationPipeline:
         score_map = {
             item["title"]: float(item.get("score", 0.0)) for item in candidates
         }
+        history_set = set(payload.history_titles)
         if reranked:
             ranked_results = [
                 RankedRecommendation(
@@ -180,6 +192,7 @@ class QueryFusionRecommendationPipeline:
                     score=score_map.get(item["title"], 0.0),
                 )
                 for item in reranked
+                if item.get("title") not in history_set
             ]
         else:
             ranked_results = [
@@ -189,5 +202,6 @@ class QueryFusionRecommendationPipeline:
                     score=score_map.get(item["title"], 0.0),
                 )
                 for item in candidates
+                if item.get("title") not in history_set
             ]
-        return queries, ranked_results
+        return queries, ranked_results, candidates
