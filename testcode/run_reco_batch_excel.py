@@ -78,16 +78,18 @@ def main() -> None:
             candidate_titles=candidate_titles,
         )
 
-        queries, ranked = pipeline.recommend(
+        queries, ranked, candidates = pipeline.recommend(
             payload,
             query_count=3,
             per_query_top_k=3,
         )
 
+        candidate_titles = [item.get("title", "") for item in candidates]
         row = {
             "user_id": user_id,
             "view_history": " / ".join(history_titles),
             "masked_latest_title": masked_title,
+            "masked_in_candidates": masked_title in candidate_titles,
         }
 
         for idx in range(3):

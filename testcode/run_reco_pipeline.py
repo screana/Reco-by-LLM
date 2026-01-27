@@ -77,7 +77,7 @@ def main() -> None:
         candidate_titles=candidate_titles,
     )
 
-    queries, ranked = pipeline.recommend(
+    queries, ranked, _candidates = pipeline.recommend(
         payload,
         query_count=3,
         per_query_top_k=3,
