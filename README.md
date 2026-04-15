@@ -1,15 +1,17 @@
 # このレポジトリについての説明
 
-研究で使うんだけど、LocalLLM久しぶりに使うからそれの復習。あとSQLを使った読み書きもやりたいよね。
+めっちゃ私用。でも全然使える内容だと思うのでLocalLLM興味あれば見てみてもいいかも？
 
-研究室内のNASにデータの使い方マニュアルがあるから先輩に聞くといいかも
+個人的なレポジトリの意味
+研究で使うんだけど、LocalLLM久しぶりに使うからそれの復習。
+あとSQLを使った読み書きも久しぶりに手書きでやりたいよね。
 
 
 ## やること
 1. LLMをとりあえず動かせるようにする。
 2. `.env`ファイルに諸々の接続情報を入れてSQLに接続出来るようにする
 3. DBから履歴とメタデータを取れるようにする
-4. とりまこれでできそう
+4. とりま、これでできそう！
 
 
 
@@ -29,12 +31,15 @@ ministral-3:latest    1922accd5827    6.0 GB    2 minutes ago
 入れた。
 入れ方「ollama ministral-3 入れ方」とかで入れて。
 保存先はちょっとややこしいから、もし同一ファイル内に保存したかったらちゃんと設定したほうがいいかも。
+（同一ファイルに入れるときはそれ用の引数とかあるからちゃんと公式Docs参照しようね）
 
 
 
 ### Python で動かそう
 
-注意点：Ollamaのサーバーを起動した状態で動かすこと。
+！注意点：Ollamaのサーバーを起動した状態で動かすこと！
+起動してないと動きません（１敗）
+~~だから、サーバーを立てる必要があったんですね。~~
 
 とりあえず`testcode`内の`test_ollama_simple.py`を動かせるようにしよう。
 
@@ -49,12 +54,14 @@ ministral-3:latest    1922accd5827    6.0 GB    2 minutes ago
 
 ## 2. SQL接続（`.env`）
 `Reco-by-LLM/.env` に以下の感じで入れる。
+
+もちろんenvファイルは自分で書いてね。わからなかったらCODEXとかに相談してほしいな（投げやり）
 ```
 DB_HOST=localhost
 DB_PORT=3306
 DB_USER=your_user
 DB_PASSWORD=your_password
-DB_NAME=am_bi_lstm
+DB_NAME=db_name
 SQL_DUMP_PATH=/path/to/your.sql
 EMBEDDING_CACHE_DIR=/path/to/cache
 EMBEDDING_MODEL=bge-m3
@@ -68,7 +75,7 @@ python3 testcode/test_recent_titles_sql.py
 
 ### 埋め込み検索（FAISS）
 `testcode/run_reco_pipeline.py` は Ollama の埋め込みモデルを使うので、
-`faiss-cpu` が必要。
+`faiss-cpu` が必要。もしLinuxだったら`faiss-gpu`が使えるからおすすめ（windowsだと使えない）
 
 ## 3. appsの構成（ざっくり）
 - `apps/reco/db_access.py`  
