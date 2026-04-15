@@ -86,9 +86,6 @@ python3 testcode/test_recent_titles_sql.py
 
 ## メモ
 
-### user
-`user_id`が14567はオペレーション用のアカウントっぽいから除外してる
-
 ### apps内
 各コードの説明はまた後で書きます
 
